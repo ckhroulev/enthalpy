@@ -1,0 +1,319 @@
+#+LaTeX_HEADER: \usepackage[margin=1in]{geometry}
+#+LATEX_HEADER: \usepackage{comment,tikz}
+#+OPTIONS: toc:nil
+#+TITLE: An exact solution for the enthalpy equation (simplified setup)
+#+BEGIN_LaTeX
+  \newcommand{\diff}[2]{\frac{\partial #1}{\partial #2}}
+#+END_LaTeX
+#+BEGIN_SRC elisp :exports none
+(org-babel-tangle)
+#+END_SRC
+
+* Shallow enthalpy equation
+  
+  \begin{eqnarray}
+    \rho \frac{\mathrm{d}H}{\mathrm{d}t} &=&
+    \diff{}{z} \left(K(H) \diff{H}{z} \right) + Q, \text{where} \\
+    K(H) &=&\left{
+    \begin{cases}
+      K_i(H) & H < H_s(p)\\
+      K_0 & H \ge H_s(p).
+    \end{cases}
+    \right.
+  \end{eqnarray}
+  
+  We also assume that $K_{i}(H)$ is constant, i.e.
+  
+  \[ K_{i}(H) = K_{i}. \]
+  
+* Simplified setup
+
+  Define
+  
+  | Variable name | Definition                                          | Units           |
+  |---------------+-----------------------------------------------------+-----------------|
+  | $K_{i}$       | enthalpy diffusivity                                | kg m-1 s-1      |
+  | $c$           | ice specific heat capacity                          | J kg-1 Kelvin-1 |
+  | $k$           | ice thermal conductivity                            | J m-1 K-1 s-1   |
+  | $S$           | total ice thickness                                 | meters          |
+  | $D_{c}$       | cold layer depth                                    | meters          |
+  | $D_{t}$       | temperate layer depth                               | meters          |
+  | $T_{s}$       | surface ice temperature                             | Kelvin          |
+  | $T_{m}$       | melting temperature at air pressure                 | Kelvin          |
+  | $T_{0}$       | reference temperature in the definition of enthalpy | Kelvin          |
+  | $G$           | basal heat flux                                     | W m-2           |
+  
+  \[ \diff{}{z}\left(K(H)\diff{H}{z}\right) = 0 \]
+  
+* Computing the exact solution
+  
+  Our task is to find the exact solution to the two point boundary problem
+  
+  \begin{eqnarray}
+    \diff{}{z}\left(K(H) \diff{H}{z} \right) &=& 0, \quad \text{where} \\
+    K(H) &=& \left{
+    \begin{cases}
+      K_i, & H < H_s(p),\\
+      K_0, & H \ge H_s(p)
+    \end{cases}\right. \quad \text{with boundary conditions}\\
+    H(0) &=& H_{1},\\
+    H(S) &=& H_{3}.
+  \end{eqnarray}
+  
+  We will need to replace the Dirichlet boundary condition at $z=0$ with
+  a Neumann condition later. See below.
+  
+  Here $H_{s}(p)$ is the enthalpy corresponding to the zero water fraction temperate ice
+  #+CALL: enth(result="'Hcts(p) = Hcts(p)") :results latex
+  and $T_{m}(p)$ is the pressure-melting temperature as a function of pressure $p$.
+  #+CALL: enth(result="'T_melting_p(d) = T_melting_p(d)") :results latex
+  
+  We use the hydrostatic approximation, so 
+  #+CALL: enth(result="'p(d) = P(d)") :results latex
+
+  Note that this is a strongly non-linear problem and $K(H)$ is
+  discontinuous. This suggests that a classical solution of this
+  problem may not exist. We will be looking for a weak
+  piecewise-linear solution.
+
+  #+NAME: geometry
+  #+BEGIN_LaTeX
+    \begin{figure}
+      \centering
+      \usetikzlibrary{decorations}
+      \begin{tikzpicture}[thick,yscale=1.5]
+        \draw [->] (-0.1,0) -- (11,0);
+    
+        \draw [->] (0,-0.1) -- (0,1.5);
+    
+        \draw [dotted] (4, -0.1) -- (4, 1.5);
+    
+        \draw [dotted] (10, -0.1) -- (10, 1.5);
+    
+        \node [left] at (0, 1.5) {$H$};
+        \node [below] at (0,-0.1) {$0$};
+        \node [below] at (4, -0.1) {$D_t$};
+        \node [below] at (10, -0.1) {$S$};
+        \node [below] at (11,-0.1) {$z$};
+    
+        \draw (0, 1) -- (4,0.5) -- (10, 0.3);
+    
+        \node [above right] at (0, 1) {$H_1$};
+        \node [above right] at (4, 0.5) {$H_2 = H_{s}(p(D_{c}))$};
+        \node [above right] at (10, 0.3) {$H_3$};
+    
+        \draw [dashed] (0, 1) -- (4,0) -- (10,0.3);
+        \draw [red, dashed] (0, 0) -- (4, 0.5) -- (10, 0);
+        
+      \end{tikzpicture}
+      \caption{Geometry and notation}
+      \label{fig:layers}
+    \end{figure}
+  #+END_LaTeX
+  
+  Moreover, in the case of interest the enthalpy at the base exceeds
+  enthalpy at the surface. This implies that $\diff{H}{z} \le 0$, so
+  /if/ a temperate layer is present, it will be below the cold layer.
+  Also, in the absence of energy sources within the column at most one
+  temperate layer can exist.
+
+  Assume that the depth of the temperate layer is known and divide the
+  column into two elements: $z < D_{t}$ and $z \ge D_{t}$.
+
+  Define basis (``hat'') functions (see figure).
+  #+NAME: basis
+  #+BEGIN_LaTeX
+    \begin{eqnarray}
+      \phi_1(z) &=& \left{
+      \begin{cases}
+        1 - \frac{z}{D_t}, & z < D_t,\\
+        0, & z \ge D_t,
+      \end{cases} \right.\\
+      \phi_2(z) &=& \left{
+      \begin{cases}
+        \frac{z}{D_t}, & z < D_t,\\
+        1 - \frac{z - D_t}{D_c}, & z \ge D_t,
+      \end{cases} \right.\\
+      \phi_3(z) &=& \left{
+      \begin{cases}
+        0, & z < D_t,\\
+        \frac{z - D_t}{D_c}, & z \ge D_t.
+      \end{cases} \right.
+    \end{eqnarray}
+  #+END_LaTeX
+
+  Clearly, any piecewise-linear function (linear in each layer) can be
+  written as
+  #+BEGIN_LaTeX
+    \begin{equation}
+      H(z) = \sum_{i=1}^3 H_i \phi_i(z).
+    \end{equation}
+  #+END_LaTeX
+
+** Weak form
+   
+   Now, the weak form is
+   #+name: weak
+   #+BEGIN_LaTeX
+     \begin{equation}
+       \int_0^S \phi \diff{}{z}\left(K(H) \diff{H}{z} \right) =
+       \left.\phi K(H) \diff{H}{z}\right|_0^S - \int_0^S\diff{\phi}{z}K(H)\diff{H}{z} = 0\\
+     \end{equation}
+   #+END_LaTeX
+
+   Here $H_{1}$ and $H_{3}$ are fixed, so there is only one degree of
+   freedom, and we need to enforce the weak form for $\phi_{2}$ only.
+
+   Also, $\phi_{2}$ vanishes at $z=0$ and $z=S$, so we can easily integrate by parts to get
+   #+CALL: enth(result="eq") :results latex
+
+   Here $\chi_{2}$ and $\eta_{2}$ are restrictions of $\phi_{2}$ to
+   the temperate and cold layers respectively.
+
+   Using the basis expansion above, we can solve this for $H_{2}$:
+   #+CALL: enth(result="H2") :results latex
+
+   This is all we need to solve the two point boundary
+   problem with Dirichlet boundary conditions.
+
+** Neumann B.C. at the base
+
+   Now we will replace the Dirichlet condition at the base with a
+   compatible Neumann B.C. To do this, notice that $\diff{H}{z}$ is a
+   constant for $z < D_{t}$, so
+   #+CALL: enth(result="eq_geothermal_flux") :results latex
+
+   Recall that we assumed that $D_{t}$ (or $D_{c}$) is known. We do
+   know, though, that the depth $D_{c}$ corresponds to $H_{s}$ (this
+   is the switch condition), so
+   #+CALL: enth(result="eq_depth") :results latex
+
+   Combining all these equations and eliminating $D_{t}$ using
+   #+CALL: enth(result="eq_geometry") :results latex
+   we get
+   #+CALL: enth(result="Dc") :results latex
+
+   Now, we can compute $H_{2}$ using
+   #+CALL: enth(result="eq_depth") :results latex
+   and $H_{1}$ as
+   #+CALL: enth(result="H1_G") :results latex
+   
+* Maxima code used for all the computations
+  #+NAME: enth
+  #+header: :var result="eq"
+  #+BEGIN_SRC maxima :exports code :tangle enthalpy_maxima.mac :results output
+    /* -*- mode: maxima -*- */
+    linel : 100;
+    set_tex_environment_default("\\begin{equation}", "\\end{equation}");
+    texput(T_melting_0, "T_{\\text{melting}}");
+    texput(nounify(T_melting_p), "T_m");
+    texput(T_0, "T_0");
+    texput(nounify(Hcts), "H_s");
+    texput(nounify(chi), "\\chi");
+    texput(nounify(eta), "\\eta");
+    texput(nounify(H1), "H");
+    texput(nounify(H2), "H");
+    
+    /* shape functions in the temperate layer */
+    chi[1](z) := 1 - z/D[t];
+    chi[2](z) := z/D[t];
+    
+    /* expansion of the enthalpy in the temperate layer using shape
+    functions as the basis */
+    H1(z) := sum('chi[i](z) * H[i], i, 1, 2);
+    
+    /* shape functions in the cold layer */
+    eta[1](z) := (z - D[t])/D[c];
+    eta[2](z) := 1 - (z - D[t])/D[c];
+    
+    /* expansion of the enthalpy in the cold layer using shape functions
+    as the basis */
+    H2(z) := 'sum('eta[i-1](z) * H[i], i, 2, 3);
+    
+    /* weak form of the enthalpy equation without advection or strain
+    heating */
+    eq :
+      K[0] * 'integrate('diff('chi[2](z), z) * 'diff('H1(z), z), z, 0, D[t]) +
+      K * 'integrate('diff('eta[2](z), z) * 'diff('H2(z), z), z, D[t], D[t] + D[c]) = 0;
+    
+    H1 : solve(ev(eq, nouns), H[1])[1];
+    H2 : solve(ev(eq, nouns), H[2])[1];
+    
+    /* pressure at depth */
+    P(d) := rho * g * d;
+    /* melting temperature at given pressure */
+    T_melting_p(p) := T_melting_0 - beta * p;
+    
+    /* enthalpy corresponding to zero water fraction temperate ice (at
+    pressure-melting temperature) */
+    Hcts(p) := c * ('T_melting_p(p) - T_0);
+    
+    /* the enthalpy at the top of the temperate layer has to be equal to
+    H_s */
+    eq_depth : H[2] = 'Hcts('P(D[c]));
+    
+    /* thicknesses of the temperate and the cold layers add up to total
+    ice thickness */
+    eq_geometry : D[t] = S - D[c];
+    
+    /* H(z) is piecewise-linear, so we can compute the geothermal flux */
+    eq_geothermal_flux: G = - K[0]*(H[2] - H[1])/D[t];
+    
+    eq_cold_layer_depth : ev(H1,
+      solve(eq_geothermal_flux, H[1]),
+      eq_depth, eq_geometry, nouns);
+    
+    Dc : solve(eq_cold_layer_depth, D[c])[1];
+    
+    H1_G : solve(eq_geothermal_flux, H[1])[1];
+    
+    tex(ev(result));
+  #+END_SRC
+
+* Checking the units
+
+  #+NAME: check_units
+  #+BEGIN_SRC maxima :exports results :tangle enthalpy_units.mac :results output latex :cache yes
+    load(ezunits);
+    
+    /* unit simplifications */
+    J : W * s;
+    Pascal : kg / (meter * second**2);
+    
+    declare_units(c, J / (kg * Kelvin)); /* specific heat capacity */
+    declare_units(k, W / (meter * Kelvin)); /* thermal conductivity */
+    
+    declare_units(G, W / meter**2); /* basal heat flux */
+    declare_units(H, W * s / kg); /* enthalpy */
+    declare_units(dz, meter); /* grid spacing */
+    
+    declare_units(T0, Kelvin); /* reference temperature */
+    declare_units(T_melting, Kelvin); /* melting temperature */
+    
+    declare_units(b, Kelvin / Pascal); /* Clausius-Clapeyron beta */
+    
+    declare_units(g, meter / second**2); /* standard gravity */
+    declare_units(rho, kg / meter**3);
+    
+    /* enthalpy diffusivity: */
+    declare_units(K, units(k) / units(c));
+    
+    /* check the units of the Neumann B.C.: */
+    NBC : units(G) - units((H / dz) * K);
+    
+    /* check the units of the depth of the cold layer: */
+    Dc : (c*K*T0 + (H[3] - c*T_melting)*K) / (b * c * g * rho * K - G);
+    
+    tex_qty(e) := tex1(args(e)[1]);
+    texput(nounify(qty), tex_qty);
+    texput(T_melting, "T_{\\text{melting}}");
+    
+    tex(D[c] = Dc);
+  #+END_SRC
+
+  #+RESULTS[c72cf76f71449e216379a56a0eab59c77df59f71]: check_units
+  #+BEGIN_LaTeX
+  $$D_{c}={{c\,K\,{\it T_0}+\left(H_{3}-c\,T_{\text{melting}}\right)\,K
+   }\over{b\,c\,g\,\rho\,K-G}}\;\mathrm{meter}$$
+  #+END_LaTeX
+

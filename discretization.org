@@ -1,0 +1,118 @@
+#+LaTeX_HEADER: \usepackage[margin=1in]{geometry}
+#+LATEX_HEADER: \usepackage{comment,tikz}
+#+OPTIONS: toc:nil
+#+TITLE: A FD discretization of the diffusion-only 1D enthalpy equation
+#+BEGIN_LaTeX
+  \newcommand{\diff}[2]{\frac{\partial #1}{\partial #2}}
+#+END_LaTeX
+#+BEGIN_SRC elisp :exports none
+(org-babel-tangle)
+#+END_SRC
+
+* The problem
+
+  Consider the two-point boundary problem \ref{eq:1}:
+  
+  \begin{eqnarray}
+  \label{eq:1}
+  \diff{H}{t} &=& \diff{}{z}\left(K(H) \diff{H}{z} \right), \\
+  H(0) &=& H_{\text{basal}}, \\
+  H(S) &=& H_{\text{surface}}. \\
+  \end{eqnarray}
+  
+* The discretization
+
+  Let $\Delta z$ be the spacing of the equally-spaced grid in the
+  column and consider a point $z_{k}$ on the grid.
+
+  #+NAME: control
+  #+BEGIN_LaTeX
+    \begin{figure}
+      \centering
+      \begin{tikzpicture}[thick]
+        \draw[->] (-5,0) -- (5,0);
+        \node [below] at (5,-0.1) {$z$};
+    
+        \foreach \x in {-2.5, 0, 2.5} \draw (\x, -0.1) -- (\x, 0.1);
+        \node [below] at (-2.5,-0.1) {$z_{k-1}$};
+        \node [below] at (0,-0.1) {$z_k$};
+        \node [below] at (2.5,-0.1) {$z_{k+1}$};
+    
+        \node [above] at (-2.5,0.1) {$H_{k-1}$};
+        \node [above] at (0,0.1) {$H_k$};
+        \node [above] at (2.5,0.1) {$H_{k+1}$};
+    
+        \foreach \x in {-1.25, 1.25} \draw [dashed] (\x, -0.5) -- (\x, 0.5);
+    
+        \node [above] at (-1.25,0.5) {$R_{k-\frac12}$};
+        \node [above] at (1.25,0.5) {$R_{k+\frac12}$};
+      \end{tikzpicture}
+      \caption{Control volume}
+    \end{figure}
+  #+END_LaTeX
+
+  #+BEGIN_SRC maxima :exports results :results output latex :cache yes
+    texput(dz, "\\Delta z");
+    texput(dt, "\\Delta t");
+    
+    mu : dt/dz**2;
+    
+    /* backward-in-time centered-in-space discretization */
+    eq: (K[k+1/2] * (H[k+1] - H[k])/dz - K[k-1/2] * (H[k] - H[k-1])/dz)/dz = (H[k] - H[k,n-1]) / dt;
+    tex(eq);
+    
+    eq: subst('mu * dz**2, dt, eq);
+    eq: eq * dz**2 * 'mu - H[k];
+    eq: expand((-1)*eq);
+    eq: collectterms(lhs(eq), H[k-1], H[k], H[k+1]) = rhs(eq);
+    K[i] := R[i] / mu;
+    tex(ev(eq, K=K));
+    tex(R[i] = 'K[i] * mu);
+    tex(ev(eq, K=K, k=0));
+  #+END_SRC
+
+  #+RESULTS[b8c2ea65a502e716e58ec32a3f929e685a12b661]:
+  #+BEGIN_LaTeX
+  $${{{{K_{k+{{1}\over{2}}}\,\left(H_{k+1}-H_{k}\right)}\over{\Delta z
+   }}-{{K_{k-{{1}\over{2}}}\,\left(H_{k}-H_{k-1}\right)}\over{\Delta z
+   }}}\over{\Delta z}}={{H_{k}-H_{k,n-1}}\over{\Delta t}}$$
+  $$-R_{k+{{1}\over{2}}}\,H_{k+1}+H_{k}\,\left(R_{k+{{1}\over{2}}}+R_{k
+   -{{1}\over{2}}}+1\right)-H_{k-1}\,R_{k-{{1}\over{2}}}=H_{k,n-1}$$
+  $$R_{i}={{\Delta t\,K_{i}}\over{\Delta z^2}}$$
+  $$-R_{{{1}\over{2}}}\,H_{1}+H_{0}\,\left(R_{{{1}\over{2}}}+R_{-{{1
+   }\over{2}}}+1\right)-H_{-1}\,R_{-{{1}\over{2}}}=H_{0,n-1}$$
+  #+END_LaTeX
+
+* Enforcing boundary conditions
+
+** Dirichlet B.C. at the surface
+
+   To enforce the Dirichlet B.C. we assemble a row with $1$ on the
+   diagonal and set the right hand side value to the prescribed
+   enthalpy value $H_{\text{surface}}$.
+
+** Neumann B.C. at the base
+
+   \begin{eqnarray}
+   \label{eq:3}
+   \left.\diff{H}{z} \right|_{z=0} & = & - \frac{G}{K}.\\
+   \end{eqnarray}
+   
+   To enforce the Neumann B.C., we introduce a ``fictional'' grid
+   point at $-\Delta z$ and write down an extra equation using the
+   centered finite difference to approximate the derivative
+   #+BEGIN_SRC maxima :exports results :results output latex 
+     eq_generic : -R[1/2]*H[1]+H[0]*(R[1/2]+R[-1/2]+1)-H[-1]*R[-1/2] = H[0,n-1];
+     
+     texput(dz, "\\Delta z");
+     eq: (H[1] - H[-1]) / (2*dz) = -G/K[0];
+     tex(eq);
+     eq: eq * 2 * dz, expand;
+     tex(eq);
+     eq: eq * (-R[-1/2]), expand;
+     tex(eq);
+     
+     tex(eq_generic);
+     
+     tex(eq + eq_generic);
+   #+END_SRC

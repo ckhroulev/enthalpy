@@ -1,0 +1,65 @@
+#+LaTeX_HEADER: \usepackage[margin=1in]{geometry}
+#+OPTIONS: toc:nil
+
+* Discretization of the temperature equation
+
+#+BEGIN_SRC maxima :results output latex :cache yes :exports results
+  texput(dt, "\\Delta t");
+  texput(dz, "\\Delta z");
+  
+  eq: (T[j,n+1] - T[j,n]) / dt =
+       k[j] * (T[j-1,n+1] - 2 * T[j,n+1] + T[j+1,n+1]) / dz**2;
+  
+  tex(eq);
+  eq: eq*dt;
+  tex(eq);
+  eq: eq-rhs(eq), expand;
+  tex(eq);
+  eq: eq + T[j,n], expand;
+  tex(eq);
+  eq2 : subst('R[j]*dz**2/dt, k[j], eq);
+  tex(eq2);
+  eq3 : eq2, j=0;
+  tex(eq3);
+  
+  eq_neumann : (T[1,n+1] - T[-1,n+1])/(2*dz) = - G / k[0];
+  tex(eq_neumann);
+  eq_neumann : eq_neumann*2*dz*(-R[0]), expand;
+  tex(eq_neumann);
+  
+  eq4 : eq3 + eq_neumann;
+  tex(eq3 + eq_neumann);
+  
+  R[j] := k[j] * dt / dz**2;
+  
+  tex('R[j] = R[j]);
+  
+  tex(ratsimp(lhs(eq4)) = ev(rhs(eq4), nouns));
+#+END_SRC
+
+#+RESULTS[feadad0241c7006ca706d0890f4bdc0652a10448]:
+#+BEGIN_LaTeX
+$${{T_{j,n+1}-T_{j,n}}\over{\Delta t}}={{k_{j}\,\left(T_{j+1,n+1}-2\,
+ T_{j,n+1}+T_{j-1,n+1}\right)}\over{\Delta z^2}}$$
+$$T_{j,n+1}-T_{j,n}={{\Delta t\,k_{j}\,\left(T_{j+1,n+1}-2\,T_{j,n+1}
+ +T_{j-1,n+1}\right)}\over{\Delta z^2}}$$
+$$-{{\Delta t\,k_{j}\,T_{j+1,n+1}}\over{\Delta z^2}}+{{2\,\Delta t\,k
+ _{j}\,T_{j,n+1}}\over{\Delta z^2}}+T_{j,n+1}-T_{j,n}-{{\Delta t\,T_{
+ j-1,n+1}\,k_{j}}\over{\Delta z^2}}=0$$
+$$-{{\Delta t\,k_{j}\,T_{j+1,n+1}}\over{\Delta z^2}}+{{2\,\Delta t\,k
+ _{j}\,T_{j,n+1}}\over{\Delta z^2}}+T_{j,n+1}-{{\Delta t\,T_{j-1,n+1}
+ \,k_{j}}\over{\Delta z^2}}=T_{j,n}$$
+$$-R_{j}\,T_{j+1,n+1}+2\,R_{j}\,T_{j,n+1}+T_{j,n+1}-T_{j-1,n+1}\,R_{j
+ }=T_{j,n}$$
+$$-R_{0}\,T_{1,n+1}+2\,R_{0}\,T_{0,n+1}+T_{0,n+1}-T_{-1,n+1}\,R_{0}=T
+ _{0,n}$$
+$${{T_{1,n+1}-T_{-1,n+1}}\over{2\,\Delta z}}=-{{G}\over{k_{0}}}$$
+$$T_{-1,n+1}\,R_{0}-R_{0}\,T_{1,n+1}={{2\,R_{0}\,\Delta z\,G}\over{k
+ _{0}}}$$
+$$-R_{0}\,T_{1,n+1}-R_{0}\,T_{1,n+1}+2\,R_{0}\,T_{0,n+1}+T_{0,n+1}-T
+ _{-1,n+1}\,R_{0}+T_{-1,n+1}\,R_{0}={{2\,R_{0}\,\Delta z\,G}\over{k_{
+ 0}}}+T_{0,n}$$
+$$R_{j}={{\Delta t\,k_{j}}\over{\Delta z^2}}$$
+$${{2\,\Delta t\,G}\over{\Delta z}}+T_{0,n}$$
+#+END_LaTeX
+
