@@ -221,7 +221,7 @@ def test(J=41, verbose=False, plot=False):
 J = 11
 Js = []
 errors = []
-for F in xrange(1, 10):
+for F in xrange(1, 12):
     J = J * 2
     print "J = %d" % J
     Js.append(J)

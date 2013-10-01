@@ -170,6 +170,14 @@
    Here $\chi_{2}$ and $\eta_{2}$ are restrictions of $\phi_{2}$ to
    the temperate and cold layers respectively.
 
+   Simplifying, we get
+   #+CALL: enth(result="eq_simp") :results latex
+
+   Note that this is just the flux continuity condition, i.e. flux
+   through the temperate layer is equal to the flux through the cold
+   layer:
+   \[ -K_0 \frac{H_2 - H_1}{D_t} = -K \frac{H_3 - H_2}{D_c}. \]
+
    Using the basis expansion above, we can solve this for $H_{2}$:
    #+CALL: enth(result="H2") :results latex
 
@@ -193,10 +201,13 @@
    we get
    #+CALL: enth(result="Dc") :results latex
 
+   Note that the depth of the cold layer does not depend on the
+   regularizing diffusion coefficient $K_0$.
+
    Now, we can compute $H_{2}$ using
-   #+CALL: enth(result="eq_depth") :results latex
+   #+CALL: enth(result="H2_Q") :results latex
    and $H_{1}$ as
-   #+CALL: enth(result="H1_G") :results latex
+   #+CALL: enth(result="H1_Q") :results latex
 
 * Maxima code used for all the computations
   #+NAME: enth
@@ -204,7 +215,9 @@
   #+BEGIN_SRC maxima :exports code :tangle enthalpy_maxima.mac :results output
     /* -*- mode: maxima -*- */
     linel : 100;
-    set_tex_environment_default("\\begin{equation}", "\\end{equation}");
+    set_tex_environment_default("\\begin{equation}
+    ", "
+    \\end{equation}");
     texput(T_melting_0, "T_{\\text{melting}}");
     texput(nounify(T_melting_p), "T_m");
     texput(T_0, "T_0");
@@ -213,67 +226,69 @@
     texput(nounify(eta), "\\eta");
     texput(nounify(H1), "H");
     texput(nounify(H2), "H");
-    
+
     /* shape functions in the temperate layer */
     chi[1](z) := 1 - z/D[t];
     chi[2](z) := z/D[t];
-    
+
     /* expansion of the enthalpy in the temperate layer using shape
     functions as the basis */
     H1(z) := sum('chi[i](z) * H[i], i, 1, 2);
-    
+
     /* shape functions in the cold layer */
     eta[2](z) := 1 - (z - D[t])/D[c];
     eta[3](z) := (z - D[t])/D[c];
-    
+
     /* expansion of the enthalpy in the cold layer using shape functions
     as the basis */
     H2(z) := 'sum('eta[i](z) * H[i], i, 2, 3);
-    
+
     /* weak form of the enthalpy equation without advection or strain
     heating */
     eq :
       K[0] * 'integrate('diff('chi[2](z), z) * 'diff('H1(z), z), z, 0, D[t]) +
       K * 'integrate('diff('eta[2](z), z) * 'diff('H2(z), z), z, D[t], D[t] + D[c]) = 0;
-    
+
+    eq_simp : ev(eq, nouns);
+
     H1 : solve(ev(eq, nouns), H[1])[1];
     H2 : solve(ev(eq, nouns), H[2])[1];
-    
+
     /* pressure at depth */
     P(d) := rho * g * d;
     /* melting temperature at given pressure */
     T_melting_p(p) := T_melting_0 - beta * p;
-    
+
     /* enthalpy corresponding to zero water fraction temperate ice (at
     pressure-melting temperature) */
     Hcts(p) := c * ('T_melting_p(p) - T_0);
-    
+
     /* the enthalpy at the top of the temperate layer has to be equal to
     H_s */
     eq_depth : H[2] = 'Hcts('P(D[c]));
-    
+
     /* thicknesses of the temperate and the cold layers add up to total
     ice thickness */
     eq_geometry : D[t] = S - D[c];
-    
+
     /* H(z) is piecewise-linear, so we can compute the geothermal flux */
     eq_geothermal_flux: G = - K[0]*(H[2] - H[1])/D[t];
-    
+
     /* H1 expressed in terms of the geothermal flux */
     H1_Q : expand(solve(eq_geothermal_flux, H[1])[1]);
-    
+
     /* equation for H2 */
     eq_H2 : H1, H1_Q;
-    
+
     /* H2 expressed in terms of the geothermal flux */
     H2_Q : expand(solve(eq_H2, H[2])[1]);
-    
+
     eq_cold_layer_depth : ev(H1,
       solve(eq_geothermal_flux, H[1]),
       eq_depth, eq_geometry, nouns);
-    
+
     Dc : solve(eq_cold_layer_depth, D[c])[1];
-    
+
     tex(ev(result));
   #+END_SRC
 
