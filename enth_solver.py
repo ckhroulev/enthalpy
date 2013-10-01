@@ -18,6 +18,7 @@ T_melting_0 = 273.15            # ice melting temperature at p=0
 beta        = 7.9e-8            # Clausius-Clapeyron constant
 ratio       = 0.1               # enthalpy conductivity ratio
 
+K0 = K * ratio
 
 def convert(value, str1, str2):
     s = U.System()
@@ -56,6 +57,26 @@ def Dc(G, E_surface):
     "Theoretical depth of the cold layer."
     global c, K, T_0, T_melting_0, beta, g, rho
     return -(c*K*T_0 + (E_surface - c*T_melting_0)*K)/(beta*c*g*rho*K - G)
+
+def E_exact(G, E_surface, K, K0, S, z):
+    "Exact solution for the problem."
+    D_cold = Dc(G, E_surface)
+    D_temp = S - D_cold
+
+    E = np.zeros_like(z)
+
+    E_transition = (E_surface * K - D_cold * G) / K
+    E_basal = (D_temp * G + K0 * E_transition) / K0
+
+    for j in xrange(z.size):
+        if z[j] < D_temp:
+            l = z[j] / D_temp
+            E[j] = E_basal * (1.0 - l) + E_transition * l
+        else:
+            l = (z[j] - D_temp) / D_cold
+            E[j] = E_transition * (1.0 - l) + E_surface * l
+
+    return E
     
 def step(E, A, z, dt, dz, E_surface, R_i=1, G=None, E_basal=None, clip=False):
     """Set boundary conditions and step."""
@@ -140,11 +161,15 @@ def solve(J=21, Dc=200, S=1000.0, T=10e3, G=0.042, E_surface=40180.0, dt=10.0, c
     K0 = R[0] * dz**2 / dt
     print "computed basal flux=%f W m-2" % (-(E[1] - E[0]) / dz * K0)
 
+    Ks = R[-1] * dz**2 / dt
+    print "computed surface flux=%f W m-2" % (-(E[-1] - E[-2]) / dz * Ks)
+
     return A, b, E, z, R
 
 G = 0.0003
 E_surface = 1e5
-A, b, E, z, R = solve(201, G=G, dt=100, T=1e4, E_surface=E_surface)
+S = 1000.0
+A, b, E, z, R = solve(201, S=S, G=G, dt=100, T=1e4, E_surface=E_surface)
 
 depth = z[-1] - z
 try:
@@ -166,5 +191,8 @@ ybounds = plt.axes().get_ybound()
 
 plt.plot([Dt, Dt], ybounds, '--', color="red")
 
-plt.show()
+exact = E_exact(G, E_surface, K, K0, S, z)
 
+plt.plot(z, exact, color="green", lw=2)
+
+plt.show()
