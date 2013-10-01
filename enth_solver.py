@@ -21,6 +21,7 @@ ratio       = 0.1               # enthalpy conductivity ratio
 K0 = K * ratio
 
 def convert(value, str1, str2):
+    "Unit converter"
     s = U.System()
 
     u1 = U.Unit(s, str1)
@@ -123,19 +124,22 @@ def step(E, A, z, dt, dz, E_surface, R_ice=1, G=None, E_basal=None, clip=False):
     
     return A, b, E, R
 
-def solve(J=21, Dc=200, S=1000.0, T=10e3, G=0.042, E_surface=40180.0, dt=10.0, clip=False):
+def solve(J=21, Dc=200, S=1000.0, T=10e3, G=0.042, E_surface=40180.0, dt=10.0,
+          clip=False, verbose=False):
 
     dt = convert(dt, "years", "seconds")
     T = convert(T, "years", "seconds")
 
     n_steps = int(float(T) / dt)
 
-    print "will take %d steps %f years long (%f years total)" % (n_steps,
-                                                                 convert(dt, "seconds", "years"),
-                                                                 convert(T, "seconds", "years"))
+    if verbose:
+        print "will take %d steps %f years long (%f years total)" % (n_steps,
+                                                                     convert(dt, "seconds", "years"),
+                                                                     convert(T, "seconds", "years"))
     dz = S / (J - 1)
 
-    print "using %d grid levels (dz=%f meters)" % (J, dz)
+    if verbose:
+        print "using %d grid levels (dz=%f meters)" % (J, dz)
 
     R_ice   = K * dt / dz**2
     ratio = 0.1
@@ -148,55 +152,84 @@ def solve(J=21, Dc=200, S=1000.0, T=10e3, G=0.042, E_surface=40180.0, dt=10.0, c
 
     plt.hold(True)
 
-    print "given basal flux=%f W m-2" % G
+    if verbose:
+        print "given basal flux=%f W m-2" % G
 
     # time-stepping loop
     for n in range(n_steps):
         A, b, E, R = step(E, A, z, dt, dz, E_surface, R_ice=R_ice, G=G, clip=clip)
 
-    K0 = R[0] * dz**2 / dt
-    print "computed basal flux=%f W m-2" % (-(E[1] - E[0]) / dz * K0)
+    if verbose:
+        K0 = R[0] * dz**2 / dt
+        print "computed basal flux=%f W m-2" % (-(E[1] - E[0]) / dz * K0)
 
-    Ks = R[-1] * dz**2 / dt
-    print "computed surface flux=%f W m-2" % (-(E[-1] - E[-2]) / dz * Ks)
+        Ks = R[-1] * dz**2 / dt
+        print "computed surface flux=%f W m-2" % (-(E[-1] - E[-2]) / dz * Ks)
 
     return A, b, E, z, R
 
-G = 0.0003
-E_surface = 1e5
-S = 1000.0
-A, b, E, z, R = solve(41, S=S, G=G, dt=100, T=1e4, E_surface=E_surface)
+def test(J=41, verbose=False, plot=False):
+    G = 0.0003
+    E_surface = 1e5
+    S = 1000.0
+    A, b, E, z, R = solve(J, S=S, G=G, dt=100, T=1e4, E_surface=E_surface, verbose=verbose)
 
-plt.plot(z, E, color='black')
-plt.grid()
-plt.xlabel("z, meters above base")
-plt.ylabel("E, J/kg")
 
-depth = S - z
-E_CTS = Ects(P(depth))
+    depth = S - z
+    E_CTS = Ects(P(depth))
 
-try:
-    Dt = z[E > E_CTS].max()
-except:
-    Dt = 0
+    try:
+        Dt = z[E > E_CTS].max()
+    except:
+        Dt = 0
 
-print "Depth of the temperate layer: %f meters" % Dt
+    Dt_theory = S - Dc(G, E_surface)
+    exact = E_exact(G, E_surface, K, K0, S, z)
 
-Dt_theory = S - Dc(G, E_surface)
+    error = np.abs(E - exact).max()
 
-print "Depth of the temperate layer (theory): %f meters" % Dt_theory
+    if verbose:
+        print "Depth of the temperate layer: %f meters" % Dt
+        print "Depth of the temperate layer (theory): %f meters" % Dt_theory
 
-plt.plot(z, E_CTS, label="CTS enthalpy")
-plt.plot(z, E_CTS + W * L, label="max. allowed enthalpy")
 
-ybounds = plt.axes().get_ybound()
+        print "temperate layer depth error: %f meters" % np.abs(Dt - Dt_theory)
+        print "max. enthalpy error: %f J/kg" % error
 
-plt.plot([Dt_theory, Dt_theory], ybounds, '--', color="black",
-         label="exact CTS")
+    if plot == True:
+        plt.plot(z, E, color='black')
+        plt.grid()
+        plt.xlabel("z, meters above base")
+        plt.ylabel("E, J/kg")
 
-exact = E_exact(G, E_surface, K, K0, S, z)
+        plt.plot(z, E_CTS, label="CTS enthalpy")
+        plt.plot(z, E_CTS + W * L, label="max. allowed enthalpy")
 
-plt.plot(z, exact, '--', color="red", label="exact solution")
+        ybounds = plt.axes().get_ybound()
 
-plt.legend()
+        plt.plot([Dt_theory, Dt_theory], ybounds, '--', color="black",
+                 label="exact CTS")
+
+
+        plt.plot(z, exact, '--', color="red", label="exact solution")
+
+        plt.legend()
+        plt.show()
+
+    return error
+
+J = 11
+Js = []
+errors = []
+for F in xrange(1, 10):
+    J = J * 2
+    print "J = %d" % J
+    Js.append(J)
+    errors.append(test(J))
+
+plt.hold(True)
+plt.loglog(Js, 1000.0/np.array(Js))
+plt.loglog(Js, errors)
+plt.xlabel("J")
+plt.ylabel("max(error)")
 plt.show()
