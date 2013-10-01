@@ -44,19 +44,21 @@ def Ects(p):
     global c, T_0
     return c * (T_melting(p) - T_0)
 
-def compute_R(E, z, R_i, ratio):
+def compute_R(E, z, R_ice, ratio):
     "Compute the R coefficient"
-    R = np.zeros_like(E) + R_i
-    E_cts = Ects(P(z[-1] - z))
+
+    S = z[-1]
+    R = np.zeros_like(E) + R_ice
+    E_cts = Ects(P(S - z))
 
     R[E > E_cts] *= ratio
 
-    return R, E_cts
+    return R
 
 def Dc(G, E_surface):
     "Theoretical depth of the cold layer."
     global c, K, T_0, T_melting_0, beta, g, rho
-    return -(c*K*T_0 + (E_surface - c*T_melting_0)*K)/(beta*c*g*rho*K - G)
+    return -(c*K*T_0 + (E_surface - c*T_melting_0)*K)/(beta*c*g*rho*K + G)
 
 def E_exact(G, E_surface, K, K0, S, z):
     "Exact solution for the problem."
@@ -65,27 +67,23 @@ def E_exact(G, E_surface, K, K0, S, z):
 
     E = np.zeros_like(z)
 
-    E_transition = (E_surface * K - D_cold * G) / K
-    E_basal = (D_temp * G + K0 * E_transition) / K0
+    depth = S - z
 
-    for j in xrange(z.size):
-        if z[j] < D_temp:
-            l = z[j] / D_temp
-            E[j] = E_basal * (1.0 - l) + E_transition * l
-        else:
-            l = (z[j] - D_temp) / D_cold
-            E[j] = E_transition * (1.0 - l) + E_surface * l
+    E_transition = E_surface + D_cold * G / K
 
+    E[z >  D_temp] = E_surface + (G / K) * depth[z > D_temp]
+    E[z <= D_temp] = E_transition + (G / K0) * (depth[z <= D_temp] - D_cold)
+    
     return E
     
-def step(E, A, z, dt, dz, E_surface, R_i=1, G=None, E_basal=None, clip=False):
+def step(E, A, z, dt, dz, E_surface, R_ice=1, G=None, E_basal=None, clip=False):
     """Set boundary conditions and step."""
     global ratio
 
     J = A.shape[0]
     b = E.copy()
 
-    R, _ = compute_R(E, z, R_i, ratio)
+    R = compute_R(E, z, R_ice, ratio)
     
     # basal boundary condition:
     if G is not None:
@@ -132,11 +130,14 @@ def solve(J=21, Dc=200, S=1000.0, T=10e3, G=0.042, E_surface=40180.0, dt=10.0, c
 
     n_steps = int(float(T) / dt)
 
-    print "will take %d steps %f years long" % (n_steps,
-                                                convert(dt, "seconds", "years"))
+    print "will take %d steps %f years long (%f years total)" % (n_steps,
+                                                                 convert(dt, "seconds", "years"),
+                                                                 convert(T, "seconds", "years"))
     dz = S / (J - 1)
 
-    R_i   = K * dt / dz**2
+    print "using %d grid levels (dz=%f meters)" % (J, dz)
+
+    R_ice   = K * dt / dz**2
     ratio = 0.1
 
     # set the initial enthalpy distribution
@@ -151,12 +152,7 @@ def solve(J=21, Dc=200, S=1000.0, T=10e3, G=0.042, E_surface=40180.0, dt=10.0, c
 
     # time-stepping loop
     for n in range(n_steps):
-        A, b, E, R = step(E, A, z, dt, dz, E_surface, R_i=R_i, G=G, clip=clip)
-
-    plt.plot(z, E, color='black')
-    plt.grid()
-    plt.xlabel("z, meters above base")
-    plt.ylabel("E, J/kg")
+        A, b, E, R = step(E, A, z, dt, dz, E_surface, R_ice=R_ice, G=G, clip=clip)
 
     K0 = R[0] * dz**2 / dt
     print "computed basal flux=%f W m-2" % (-(E[1] - E[0]) / dz * K0)
@@ -169,30 +165,38 @@ def solve(J=21, Dc=200, S=1000.0, T=10e3, G=0.042, E_surface=40180.0, dt=10.0, c
 G = 0.0003
 E_surface = 1e5
 S = 1000.0
-A, b, E, z, R = solve(201, S=S, G=G, dt=100, T=1e4, E_surface=E_surface)
+A, b, E, z, R = solve(41, S=S, G=G, dt=100, T=1e4, E_surface=E_surface)
 
-depth = z[-1] - z
+plt.plot(z, E, color='black')
+plt.grid()
+plt.xlabel("z, meters above base")
+plt.ylabel("E, J/kg")
+
+depth = S - z
+E_CTS = Ects(P(depth))
+
 try:
-    Dt = z[E > Ects(P(depth))].max()
+    Dt = z[E > E_CTS].max()
 except:
     Dt = 0
 
 print "Depth of the temperate layer: %f meters" % Dt
 
-Dt_theory = z[-1] - Dc(G, E_surface)
+Dt_theory = S - Dc(G, E_surface)
 
 print "Depth of the temperate layer (theory): %f meters" % Dt_theory
 
-E_CTS = Ects(P(depth))
-
-plt.plot(z, E_CTS, z, E_CTS + W * L)
+plt.plot(z, E_CTS, label="CTS enthalpy")
+plt.plot(z, E_CTS + W * L, label="max. allowed enthalpy")
 
 ybounds = plt.axes().get_ybound()
 
-plt.plot([Dt, Dt], ybounds, '--', color="red")
+plt.plot([Dt_theory, Dt_theory], ybounds, '--', color="black",
+         label="exact CTS")
 
 exact = E_exact(G, E_surface, K, K0, S, z)
 
-plt.plot(z, exact, color="green", lw=2)
+plt.plot(z, exact, '--', color="red", label="exact solution")
 
+plt.legend()
 plt.show()

@@ -213,64 +213,67 @@
     texput(nounify(eta), "\\eta");
     texput(nounify(H1), "H");
     texput(nounify(H2), "H");
-
+    
     /* shape functions in the temperate layer */
     chi[1](z) := 1 - z/D[t];
     chi[2](z) := z/D[t];
-
+    
     /* expansion of the enthalpy in the temperate layer using shape
     functions as the basis */
     H1(z) := sum('chi[i](z) * H[i], i, 1, 2);
-
+    
     /* shape functions in the cold layer */
-    eta[1](z) := (z - D[t])/D[c];
     eta[2](z) := 1 - (z - D[t])/D[c];
-
+    eta[3](z) := (z - D[t])/D[c];
+    
     /* expansion of the enthalpy in the cold layer using shape functions
     as the basis */
-    H2(z) := 'sum('eta[i-1](z) * H[i], i, 2, 3);
-
+    H2(z) := 'sum('eta[i](z) * H[i], i, 2, 3);
+    
     /* weak form of the enthalpy equation without advection or strain
     heating */
     eq :
       K[0] * 'integrate('diff('chi[2](z), z) * 'diff('H1(z), z), z, 0, D[t]) +
       K * 'integrate('diff('eta[2](z), z) * 'diff('H2(z), z), z, D[t], D[t] + D[c]) = 0;
-
+    
     H1 : solve(ev(eq, nouns), H[1])[1];
     H2 : solve(ev(eq, nouns), H[2])[1];
-
+    
     /* pressure at depth */
     P(d) := rho * g * d;
     /* melting temperature at given pressure */
     T_melting_p(p) := T_melting_0 - beta * p;
-
+    
     /* enthalpy corresponding to zero water fraction temperate ice (at
     pressure-melting temperature) */
     Hcts(p) := c * ('T_melting_p(p) - T_0);
-
+    
     /* the enthalpy at the top of the temperate layer has to be equal to
     H_s */
     eq_depth : H[2] = 'Hcts('P(D[c]));
-
+    
     /* thicknesses of the temperate and the cold layers add up to total
     ice thickness */
     eq_geometry : D[t] = S - D[c];
-
+    
     /* H(z) is piecewise-linear, so we can compute the geothermal flux */
     eq_geothermal_flux: G = - K[0]*(H[2] - H[1])/D[t];
-
-    H1_G : solve(eq_geothermal_flux, H[1])[1];
-
-    eq_H2 : H1, H1_G;
-
-    H2_final : solve(eq_H2, H[2]);
-
+    
+    /* H1 expressed in terms of the geothermal flux */
+    H1_Q : expand(solve(eq_geothermal_flux, H[1])[1]);
+    
+    /* equation for H2 */
+    eq_H2 : H1, H1_Q;
+    
+    /* H2 expressed in terms of the geothermal flux */
+    H2_Q : expand(solve(eq_H2, H[2])[1]);
+    
     eq_cold_layer_depth : ev(H1,
       solve(eq_geothermal_flux, H[1]),
       eq_depth, eq_geometry, nouns);
-
+    
     Dc : solve(eq_cold_layer_depth, D[c])[1];
-
+    
     tex(ev(result));
   #+END_SRC
 
@@ -318,5 +321,5 @@
   #+RESULTS[c72cf76f71449e216379a56a0eab59c77df59f71]: check_units
   #+BEGIN_LaTeX
   $$D_{c}={{c\,K\,{\it T_0}+\left(H_{3}-c\,T_{\text{melting}}\right)\,K
-   }\over{b\,c\,g\,\rho\,K-G}}\;\mathrm{meter}$$
+   }\over{b\,c\,g\,\rho\,K+G}}\;\mathrm{meter}$$
   #+END_LaTeX
